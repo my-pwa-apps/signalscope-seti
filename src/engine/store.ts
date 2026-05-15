@@ -292,6 +292,14 @@ export const useEngine = create<EngineStore>((set) => ({
       aiTriageError: null
     });
 
+    // Track consecutive analyze failures so a flapping data source (most
+    // commonly: hosting on a static origin like GitHub Pages where there is
+    // no `/api/datafile` proxy, or a stalled upstream) doesn't deadlock the
+    // engine in the "analyzing" state with no progress. After
+    // MAX_CONSECUTIVE_FAILURES we stop the loop and surface an actionable
+    // hint instead of silently hammering the broken endpoint.
+    let consecutiveFailures = 0;
+    const MAX_CONSECUTIVE_FAILURES = 3;
     while (running) {
       const fetched = await workClient.fetchWorkUnit();
       if (!running) break;
@@ -370,7 +378,44 @@ export const useEngine = create<EngineStore>((set) => ({
           useEngine.setState({ lastError: message });
         }
       });
-      if (!run) break; // cancelled or failed
+      if (!run) {
+        // Distinguish a genuine cancel (pause()) from a worker / fetch error.
+        // Cancel sets `running = false` first, so the loop should just exit.
+        if (!running) break;
+        // Otherwise the worker reported an error or the fetch hung and was
+        // aborted. Skip this unit, briefly back off so we don't spin, and
+        // try the next one in the catalog cycle.
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          // Three units in a row failed — almost certainly the live archive
+          // proxy (`/api/datafile`) is unreachable on this host. Stop the
+          // loop and surface an actionable hint pointing at cached replay
+          // or the canonical Cloudflare deployment.
+          running = false;
+          let cached = 0;
+          try {
+            cached = await cachedReplayCount();
+          } catch {
+            /* ignore */
+          }
+          const hint =
+            cached > 0
+              ? `Live archive feed unreachable after ${MAX_CONSECUTIVE_FAILURES} attempts. ` +
+                `Try Replay cached (${cached} available) or upload a .fil file.`
+              : `Live archive feed unreachable after ${MAX_CONSECUTIVE_FAILURES} attempts. ` +
+                `If you are on a static host (e.g. GitHub Pages), the /api/datafile proxy ` +
+                `does not exist there — use the Cloudflare Pages canonical deployment, ` +
+                `or upload a .fil file from your device.`;
+          set({ status: 'paused', lastError: hint });
+          break;
+        }
+        // Brief back-off so we don't tight-loop against a broken endpoint.
+        await new Promise<void>((r) => setTimeout(r, 1500));
+        continue;
+      }
+      // Success: reset the failure counter so transient errors don't
+      // accumulate across long-running sessions.
+      consecutiveFailures = 0;
 
       let annotated = run.result.candidates;
       try {

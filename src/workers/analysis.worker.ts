@@ -335,9 +335,35 @@ async function fetchAndDecodeFilterbank(
       ? async (offset, length) => {
           const proxy = ds.proxyPath;
           const encoded = encodeURIComponent(ds.upstreamUrl);
-          const resp = await fetch(`${proxy}?url=${encoded}&offset=${offset}&length=${length}`);
+          const url = `${proxy}?url=${encoded}&offset=${offset}&length=${length}`;
+          // Bound every remote read with an AbortController so a stalled
+          // upstream (or a missing /api/datafile proxy returning a never-
+          // ending HTML response) cannot wedge the analysis loop forever.
+          // Header reads are tiny so 20s is plenty; data slabs scale with
+          // size up to a hard 90s ceiling.
+          const timeoutMs = length > 65536 ? 90000 : 20000;
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), timeoutMs);
+          let resp: Response;
+          try {
+            resp = await fetch(url, { signal: controller.signal });
+          } catch (err) {
+            if ((err as Error)?.name === 'AbortError') {
+              throw new Error(
+                `Remote fetch timed out after ${Math.round(timeoutMs / 1000)}s ` +
+                  `(${length} bytes @ ${offset}). The /api/datafile proxy may be ` +
+                  `unreachable on this host (e.g. GitHub Pages has no Pages Functions).`
+              );
+            }
+            throw err;
+          } finally {
+            clearTimeout(timer);
+          }
           if (!resp.ok) {
-            throw new Error(`Remote fetch failed: ${resp.status} ${resp.statusText}`);
+            throw new Error(
+              `Remote fetch failed: ${resp.status} ${resp.statusText} ` +
+                `(${length} bytes @ ${offset} via ${proxy})`
+            );
           }
           return resp.arrayBuffer();
         }
