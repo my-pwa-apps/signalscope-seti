@@ -167,6 +167,10 @@ export function Dashboard() {
                 {cachedCount > 0
                   ? `${cachedCount} previously analyzed observation${cachedCount === 1 ? '' : 's'} stored locally. Replay one to keep the engine working without network access.`
                   : 'Connect to the network to analyze the live archive, or upload your own .fil file. After your first analysis we will cache it locally for offline replay.'}
+                <span className="mt-1 block text-[10px] text-slate-400">
+                  Note: only previously analyzed observations are available offline. The live
+                  archive feed always requires network access, even from the installed PWA.
+                </span>
               </div>
               {cachedCount > 0 && (
                 <Button

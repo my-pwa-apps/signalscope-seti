@@ -29,7 +29,7 @@ visualizes:
 - **Web Worker** (ES module worker) — all heavy DSP runs off the main thread.
 - **WebGPU-ready** — the engine and worker are structured so a WebGPU FFT can be
   swapped in later (`src/workers/fft.ts`).
-- **vite-plugin-pwa (Workbox)** — installable PWA, offline-ready shell.
+- **vite-plugin-pwa (Workbox)** — installable PWA with an offline-ready *application shell* and cached-replay path. Live archive streaming always requires network access, even from the installed PWA — only previously analyzed observations replay offline.
 - **IndexedDB** — pre-decoded spectrograms of the last 5 analyses are cached
   natively-as-binary so the engine can keep running offline. Lightweight
   metadata (stats, candidate list, settings) still lives in `localStorage`.
@@ -83,6 +83,15 @@ required for `/api/datafile` and `/api/triage`; on GitHub Pages the upload and
 cached-replay paths work without those endpoints, while the live archive feed
 and Workers AI triage need `VITE_DATAFILE_PROXY_PATH` and `VITE_AI_TRIAGE_PATH`
 pointing at an externally reachable backend.
+
+**Cloudflare Pages is the canonical hardened production host.** The HTTP
+security headers in [public/_headers](public/_headers)
+(`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`,
+`Permissions-Policy`) are honored by Cloudflare but **not** by GitHub Pages.
+The app also ships a `<meta http-equiv="Content-Security-Policy">` shim in
+[index.html](index.html) so the GitHub Pages mirror still gets a CSP and a
+meta-referrer policy applied at the document level. Treat the GitHub Pages
+build as a mirror; advertise the Cloudflare URL as production.
 
 ---
 
@@ -428,6 +437,22 @@ The deploy script always runs a fresh production build before uploading `dist/`,
 so stale local build artifacts are not deployed by accident. The Pages Function
 environment is configured through [wrangler.toml](wrangler.toml), including the
 Workers AI binding named `AI`.
+
+#### Custom domain (recommended)
+
+Some corporate / older networks cannot complete a TLS handshake to
+`*.pages.dev` (`ERR_SSL_VERSION_OR_CIPHER_MISMATCH`) because Cloudflare's
+edge cipher suite for `*.pages.dev` is more aggressive than legacy TLS
+libraries support. If you hit this from your workstation, attach a custom
+domain to the Cloudflare Pages project: the custom-domain edge uses the
+standard Cloudflare TLS profile and works on all modern browsers and most
+legacy ones. Steps:
+
+1. Cloudflare dashboard → *Pages → signalscope-seti → Custom domains → Set up a custom domain.*
+2. Add a CNAME in your DNS provider pointing to `signalscope-seti.pages.dev`.
+3. Wait for the SSL certificate to provision (typically <5 minutes), then update
+   `VITE_DATAFILE_PROXY_PATH` and `VITE_AI_TRIAGE_PATH` in the GitHub Pages
+   workflow to point at the new domain.
 
 ### Attribution
 

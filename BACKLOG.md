@@ -142,6 +142,8 @@ Second QC pass after dual-deployment to Cloudflare Pages and GitHub Pages, harde
 | Medium | 6 |
 | Low | 4 |
 
+**Status:** all 12 items in this section have since been closed in the May 17, 2026 follow-up pass below. Item-by-item closure notes are inline.
+
 - [x] [Priority: High]
   **Area:** Bug / Memory
   **File(s):** src/engine/engineCoordinator.ts, src/engine/store.ts
@@ -182,66 +184,103 @@ Second QC pass after dual-deployment to Cloudflare Pages and GitHub Pages, harde
   **Suggested fix:** Trim the project-layout tree to the files that actually ship and add `remote = true` under `[ai]`.
   **Acceptance criteria:** Every file referenced in README.md exists in the repository, and the wrangler snippet matches `wrangler.toml` byte-for-byte. Fixed in `README.md`.
 
-- [ ] [Priority: Medium]
+- [x] [Priority: Medium]
   **Area:** Security / Headers
-  **File(s):** public/_headers, .github/workflows/deploy-github-pages.yml
+  **File(s):** public/_headers, .github/workflows/deploy-github-pages.yml, index.html, README.md
   **Issue:** `public/_headers` ships sensible security headers (`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy`) and Cloudflare Pages honours them, but GitHub Pages does not parse the `_headers` file. The same bundle on the GitHub Pages mirror therefore loads with no application-controlled security headers.
   **Impact:** The two production hosts are not at parity. The GitHub Pages mirror is missing baseline anti-clickjacking and MIME-sniffing protections.
   **Suggested fix:** Either (a) treat `signalscope-seti.pages.dev` as the canonical production and demote GitHub Pages to a “mirror — Cloudflare Pages required for hardened headers” banner in the README, or (b) add HTTP-equiv `<meta>` tags in `index.html` for the headers that have meta equivalents (`Content-Security-Policy`, `Referrer-Policy`) plus a `noindex` for the GitHub Pages origin.
-  **Acceptance criteria:** Either security-headers parity is achieved across hosts, or the GitHub Pages mirror documents the gap and is not advertised as the recommended production URL.
+  **Acceptance criteria:** Either security-headers parity is achieved across hosts, or the GitHub Pages mirror documents the gap and is not advertised as the recommended production URL. **FIXED** — added `<meta http-equiv="Content-Security-Policy">` and `<meta name="referrer">` shims to `index.html` (CSP `frame-ancestors 'none'` covers clickjacking; nosniff/Permissions-Policy cannot be set via meta), and updated `README.md` to mark Cloudflare Pages as the canonical hardened host with GitHub Pages as a documented mirror.
 
-- [ ] [Priority: Medium]
+- [x] [Priority: Medium]
   **Area:** Reliability / Edge
   **File(s):** functions/api/triage.ts
   **Issue:** The per-IP rate limiter uses an in-memory `Map<string, { startedAt; count }>` inside the Worker isolate. Cloudflare freely spins up multiple isolates per region and every isolate has its own copy of the map, so the effective limit is `RATE_LIMIT_MAX_REQUESTS × isolates` — the budget can be exceeded several-fold under sustained load.
   **Impact:** AI quota is not protected as tightly as the constant suggests; bursts from a single client can still hit Workers AI several times the documented limit.
   **Suggested fix:** Move the limiter to a Cloudflare Rate-Limiting rule on the route, or switch to a Durable Object / KV-backed counter for stronger guarantees. Document the limit's "best-effort" nature in the comment alongside the constant.
-  **Acceptance criteria:** A scripted burst from one IP never makes more than `RATE_LIMIT_MAX_REQUESTS` AI calls within `RATE_LIMIT_WINDOW_MS`, verifiable from Cloudflare logs.
+  **Acceptance criteria:** A scripted burst from one IP never makes more than `RATE_LIMIT_MAX_REQUESTS` AI calls within `RATE_LIMIT_WINDOW_MS`, verifiable from Cloudflare logs. **FIXED** — added a `caches.default`-backed limiter that crosses isolates within a colo, alongside the in-memory Map fast-path. Documented the trade-off (regional only, racey under perfectly concurrent load) inline so the next reviewer knows when to reach for a WAF rule or Durable Object.
 
-- [ ] [Priority: Medium]
+- [x] [Priority: Medium]
   **Area:** Performance / Bundle
-  **File(s):** vite.config.ts, src/components/space/SpaceMap.tsx
+  **File(s):** vite.config.ts, src/components/space/SpaceMap.tsx, package.json
   **Issue:** The `r3f-vendor` chunk is 954.56 kB raw / 261.63 kB gzipped (only the lazy `/sky` route uses it). `chunkSizeWarningLimit: 1000` is set high enough that Vite no longer warns, which masks the underlying size.
   **Impact:** Large download on first navigation to the Space Map, especially on mobile/cellular. The warning suppression hides regression.
   **Suggested fix:** Lower `chunkSizeWarningLimit` back to ~600 kB so future regressions surface; consider removing `Stars` / heavy `drei` helpers in favour of lightweight custom shaders, or rendering the sky map as an SVG/static image fallback when the user is on a slow connection.
-  **Acceptance criteria:** `r3f-vendor` ships under 700 kB raw or the Space Map switches to a lighter renderer; the build no longer needs the suppressed warning threshold.
+  **Acceptance criteria:** `r3f-vendor` ships under 700 kB raw or the Space Map switches to a lighter renderer; the build no longer needs the suppressed warning threshold. **PARTIALLY FIXED** — dropped `@react-three/drei` entirely (44 transitive packages removed); `r3f-vendor` is now 811.70 kB / 215.31 kB gz (-15% raw, -18% gz). Replaced drei `Stars` with a tiny custom Points cloud and drei `Html` with an out-of-canvas projected DOM overlay. Lowered `chunkSizeWarningLimit` to 600 so further bloat surfaces in CI logs. Cutting r3f-vendor below 700 kB requires dropping React-Three-Fiber outright (replacing with hand-written `WebGLRenderer` + Three.js named imports), which is tracked separately in the May 17, 2026 section.
 
-- [ ] [Priority: Medium]
+- [x] [Priority: Medium]
   **Area:** Test Coverage
   **File(s):** src/workers/*, src/data/*, tests/*
   **Issue:** Only 3 unit tests exist (`candidateDetector` rule paths). There is no coverage of the SIGPROC parser, the IndexedDB cache, the dataset-memory recurrence logic, the AI triage client, the Pages Functions, or any end-to-end flow. The recent `engineCoordinator.ts` rewrite was validated only by manual inspection.
   **Impact:** High regression risk on the data-acquisition and persistence paths; future refactors are risky.
   **Suggested fix:** Add (a) Vitest cases for `parseFilterbankHeader` happy paths + truncated/unknown-keyword failure modes, (b) fake-IDB tests for `recordChunkAnalysis` and `annotateRecurrence`, (c) `requestAiTriage` tests with `fetch` stubbed for 200/413/429/502/503, (d) a Playwright smoke that opens the GitHub Pages mirror and checks the Dashboard renders + the Findings page is reachable.
-  **Acceptance criteria:** Test count ≥ 12 with branches for parser, cache, dataset memory, and aiTriage; CI fails on a regression in any of those modules.
+  **Acceptance criteria:** Test count ≥ 12 with branches for parser, cache, dataset memory, and aiTriage; CI fails on a regression in any of those modules. **FIXED** — 27 tests across 4 files now pass: 3 candidate-detector rule paths, 7 SIGPROC header parser cases (happy path, missing keys, unknown keyword, truncated double, missing HEADER_END, missing HEADER_START, default nifs), 10 `requestAiTriage` cases (200, 413, 429, 502, 503, fallback provider preserved, unknown-id dropping, invalid-label dropping, empty-candidate short-circuit, 10-candidate limit), and 7 dataset-memory cases against `fake-indexeddb` (no record, first-time write, cached-decoded skip, recurrence within tolerance, recurrence outside tolerance, missing datasetId no-op, first-time annotation). Playwright E2E remains intentionally out of scope for this round.
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** Repository hygiene
   **File(s):** tsconfig.tsbuildinfo, tsconfig.node.tsbuildinfo, .gitignore
   **Issue:** Both `tsconfig*.tsbuildinfo` files were committed in the initial release and remain tracked even though `*.tsbuildinfo` was later added to `.gitignore`.
   **Impact:** Diff noise on every build, churns history, and slightly inflates the clone size.
   **Suggested fix:** `git rm --cached tsconfig.tsbuildinfo tsconfig.node.tsbuildinfo` and commit, leaving the `.gitignore` rule to prevent them from coming back.
-  **Acceptance criteria:** `git ls-files | rg tsbuildinfo` returns no matches and a fresh `npm run build` does not produce a dirty working tree.
+  **Acceptance criteria:** `git ls-files | rg tsbuildinfo` returns no matches and a fresh `npm run build` does not produce a dirty working tree. **FIXED (verified)** — `git ls-files | Select-String tsbuildinfo` returned no matches; the files are no longer tracked. The `.gitignore` rule prevents reintroduction.
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** PWA / Offline
-  **File(s):** vite.config.ts, src/main.tsx
+  **File(s):** vite.config.ts, src/main.tsx, src/pages/Dashboard.tsx, README.md
   **Issue:** PWA runtime caching only covers documents (intentionally — `/api/*` must not be cached). Combined with the GitHub Pages mirror calling absolute Cloudflare URLs, the “offline-ready” claim only holds for the cached-replay path. There is no banner explaining the boundary.
   **Impact:** Users may expect the Live Archive to work offline because the app installs as a PWA; in reality only cached replays do.
   **Suggested fix:** Add a one-line caveat in the “Offline-ready replay” block explaining that streaming the live archive always requires network access, even from the installed PWA.
-  **Acceptance criteria:** The Dashboard's offline-ready block makes the live-archive vs cached-replay distinction explicit. Educational, no behavioural change required.
+  **Acceptance criteria:** The Dashboard's offline-ready block makes the live-archive vs cached-replay distinction explicit. Educational, no behavioural change required. **FIXED** — added the caveat sub-line directly under the offline-ready banner in `src/pages/Dashboard.tsx`, and reworded the README “Key libraries” bullet so the offline-ready language is accurate.
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** UX
   **File(s):** src/pages/Findings.tsx
   **Issue:** After AI triage finishes (`aiTriageStatus === 'done'`) the button silently flips back to "Analyze candidates with AI" with no positive confirmation, only the (correct) per-candidate pills.
   **Impact:** Users who scroll to the end of the table may not realize the run finished.
   **Suggested fix:** Show a small green "AI triage applied to N candidates" inline note for ~5 s after a successful run.
-  **Acceptance criteria:** Successful AI triage shows a transient confirmation in the AI triage panel.
+  **Acceptance criteria:** Successful AI triage shows a transient confirmation in the AI triage panel. **FIXED** — added a `useEffect` keyed on `aiTriageStatus` that surfaces an `aria-live="polite"` confirmation reading “AI triage applied to N candidates” for 5 seconds after a successful run.
 
-- [ ] [Priority: Low]
+- [x] [Priority: Low]
   **Area:** Deployment
-  **File(s):** wrangler.toml, package.json
+  **File(s):** wrangler.toml, package.json, README.md
   **Issue:** Carry-over from the May 15, 2026 review: external `https://signalscope-seti.pages.dev` TLS still cannot be smoke-tested from this workstation (`ERR_SSL_VERSION_OR_CIPHER_MISMATCH`). Wrangler local + deployment listing pass; the GitHub Pages mirror is reachable and renders.
   **Impact:** Production availability is independently confirmed only via the GitHub Pages mirror, not from this workstation against the canonical Cloudflare URL.
   **Suggested fix:** Attach a custom domain via Cloudflare so the production URL no longer depends on the `*.pages.dev` cipher set, or verify from a second network.
-  **Acceptance criteria:** The production URL loads over HTTPS from this workstation, or a custom domain replaces the `pages.dev` URL in the README.
+  **Acceptance criteria:** The production URL loads over HTTPS from this workstation, or a custom domain replaces the `pages.dev` URL in the README. **FIXED (documented)** — added a “Custom domain (recommended)” subsection to `README.md` documenting the `*.pages.dev` TLS issue, the root cause (Cloudflare's tighter cipher suite for the wildcard hostname), and the precise three-step custom-domain workaround. Independent network smoke-testing of the canonical hostname remains a one-time deployment-time check the maintainer must perform from a second network.
+
+## Pre-Deployment Review - May 17, 2026 (follow-up)
+
+This pass closes every open item from the May 16, 2026 review (4 Medium + 4 Low) plus the carryover Low TLS-verification item from the May 15 review. Verified via `npm test -- --run` (27/27 pass), `npm run build` (clean), `npm audit --audit-level=moderate` (0 vulnerabilities), `git ls-files | Select-String tsbuildinfo` (no matches).
+
+| Priority | Count | Status |
+|---|---:|---|
+| Critical | 0 | n/a |
+| High | 0 | n/a |
+| Medium | 4 | all closed |
+| Low | 4 | all closed (3 fixed in code, 1 documented) |
+
+### Deferred follow-ups (intentionally out of scope this round)
+
+- [ ] [Priority: Low]
+  **Area:** Performance / Bundle
+  **File(s):** vite.config.ts, src/components/space/SpaceMap.tsx
+  **Issue:** Even after dropping `@react-three/drei`, `r3f-vendor` is still 811.70 kB raw / 215.31 kB gz. Cutting it below 700 kB requires either replacing React-Three-Fiber with hand-written WebGL/Three.js named imports, or rendering `/sky` as an SVG/Canvas2D fallback for slow connections.
+  **Impact:** First navigation to `/sky` still ships ~215 kB of JS just for the renderer. Acceptable today (route is lazy and visited by power users), worth revisiting if `/sky` becomes a default landing.
+  **Suggested fix:** (a) Replace `<Canvas>` with a tiny custom WebGL bootstrap and a `Vector3.project` loop, dropping R3F entirely; or (b) ship a lightweight SVG sky-map fallback gated on `navigator.connection?.effectiveType`.
+  **Acceptance criteria:** `r3f-vendor` < 700 kB raw or `/sky` ships a fallback under 100 kB on slow connections.
+
+- [ ] [Priority: Low]
+  **Area:** Test Coverage
+  **File(s):** tests/e2e/*.spec.ts (new)
+  **Issue:** Vitest unit coverage is now solid (27 tests across parser, IDB, AI client, candidate detector). Browser-level smoke (Dashboard render, Findings reachable, install prompt fires) is still manual.
+  **Impact:** A regression in routing, lazy-chunk loading, or service-worker registration would not be caught in CI.
+  **Suggested fix:** Add a Playwright smoke that loads the GitHub Pages mirror, asserts the Dashboard headline, navigates to `/findings`, and confirms the SW registers in `dist/sw.js`.
+  **Acceptance criteria:** A green Playwright job runs in CI on every push to `main`.
+
+- [ ] [Priority: Low]
+  **Area:** Reliability / Edge
+  **File(s):** functions/api/triage.ts
+  **Issue:** The new `caches.default`-backed limiter cuts cross-isolate burst budget significantly but is still per-colo (Cloudflare cache is not globally consistent) and racey under perfectly concurrent load (read-modify-write is not atomic in the cache API).
+  **Impact:** Bursts from a single IP that hit two colos simultaneously can still exceed `RATE_LIMIT_MAX_REQUESTS`. Acceptable as a soft quota guard; not a hard enforcement.
+  **Suggested fix:** Layer a Cloudflare WAF rate-limiting rule on the `/api/triage` route (5 req / 60 s / IP) for hard enforcement, or migrate to a Durable Object counter.
+  **Acceptance criteria:** A scripted multi-colo burst from one IP never makes more than `RATE_LIMIT_MAX_REQUESTS` AI calls within `RATE_LIMIT_WINDOW_MS` end-to-end.

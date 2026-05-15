@@ -40,6 +40,13 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
 const PROMPT_VERSION = 'signalscope-ai-triage-v1';
 const LABELS = new Set(['likely_rfi', 'likely_noise', 'interesting', 'needs_follow_up']);
+
+// Two-tier rate limiter:
+//  1. In-isolate Map for sub-millisecond fast-path (catches bursts within one isolate).
+//  2. Cloudflare regional cache (`caches.default`) for durability across isolates inside a colo.
+// This is still best-effort — the regional cache is per-colo, not global, and writes can race —
+// but it gives much better protection than the per-isolate Map alone. For hard guarantees, layer
+// a Cloudflare WAF rate-limiting rule on /api/triage in the dashboard.
 const rateBuckets = new Map<string, { startedAt: number; count: number }>();
 
 export const onRequestPost: PagesFunction<AiEnv> = async ({ request, env }) => {
@@ -48,7 +55,10 @@ export const onRequestPost: PagesFunction<AiEnv> = async ({ request, env }) => {
     return json({ error: 'AI triage request is too large.' }, 413);
   }
   const rateKey = clientRateKey(request);
-  if (isRateLimited(rateKey)) {
+  if (isLocallyRateLimited(rateKey)) {
+    return json({ error: 'AI triage is temporarily rate-limited. Please try again later.' }, 429);
+  }
+  if (await isRegionallyRateLimited(rateKey)) {
     return json({ error: 'AI triage is temporarily rate-limited. Please try again later.' }, 429);
   }
 
@@ -252,7 +262,7 @@ function clientRateKey(request: Request): string {
   );
 }
 
-function isRateLimited(key: string): boolean {
+function isLocallyRateLimited(key: string): boolean {
   const now = Date.now();
   const bucket = rateBuckets.get(key);
   if (!bucket || now - bucket.startedAt > RATE_LIMIT_WINDOW_MS) {
@@ -266,6 +276,57 @@ function isRateLimited(key: string): boolean {
     }
   }
   return bucket.count > RATE_LIMIT_MAX_REQUESTS;
+}
+
+interface RegionalBucket {
+  count: number;
+  expiresAt: number;
+}
+
+/**
+ * Per-IP rate limit using Cloudflare's regional cache (`caches.default`).
+ * Crosses isolates inside a colo so multiple isolates that happen to handle
+ * the same client cannot independently grant the full RATE_LIMIT_MAX_REQUESTS.
+ *
+ * Trade-offs:
+ *   - Regional only — a client routed across colos still gets a fresh budget per colo.
+ *   - Reads/writes can race; a small overshoot is possible under perfectly concurrent load.
+ *   - Falls back to allow-on-failure so a cache outage cannot lock the AI feature out.
+ */
+async function isRegionallyRateLimited(key: string): Promise<boolean> {
+  if (typeof caches === 'undefined' || !caches.default) return false;
+  const cacheUrl = `https://signalscope-seti.invalid/rate-limit/${encodeURIComponent(key)}`;
+  const cache = caches.default;
+  let bucket: RegionalBucket | null = null;
+  try {
+    const cached = await cache.match(cacheUrl);
+    if (cached) {
+      const data = (await cached.json()) as RegionalBucket;
+      if (data && Date.now() < data.expiresAt) bucket = data;
+    }
+  } catch {
+    return false;
+  }
+  const now = Date.now();
+  if (bucket && bucket.count >= RATE_LIMIT_MAX_REQUESTS) return true;
+  const next: RegionalBucket = bucket
+    ? { count: bucket.count + 1, expiresAt: bucket.expiresAt }
+    : { count: 1, expiresAt: now + RATE_LIMIT_WINDOW_MS };
+  const ttl = Math.max(1, Math.ceil((next.expiresAt - now) / 1000));
+  try {
+    await cache.put(
+      cacheUrl,
+      new Response(JSON.stringify(next), {
+        headers: {
+          'Cache-Control': `max-age=${ttl}`,
+          'Content-Type': 'application/json'
+        }
+      })
+    );
+  } catch {
+    /* swallow — best-effort */
+  }
+  return false;
 }
 
 function normalizeCandidate(candidate: TriageCandidateInput): TriageCandidateInput {

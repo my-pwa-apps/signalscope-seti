@@ -10,6 +10,19 @@
       name="description"
       content="SignalScope SETI — citizen-science PWA inspired by SETI@home. Donate idle compute to analyze public radio-astronomy datasets."
     />
+    <!--
+      Security headers as <meta http-equiv> shims. These are honored by browsers
+      on hosts that do NOT serve the matching HTTP headers from public/_headers
+      (e.g. the GitHub Pages mirror at https://my-pwa-apps.github.io/signalscope-seti/).
+      On Cloudflare Pages the real HTTP headers from public/_headers take precedence.
+      Note: X-Frame-Options and Permissions-Policy cannot be set via <meta> per spec —
+      CSP `frame-ancestors 'none'` covers the clickjacking case here.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me data:; img-src 'self' data: blob:; connect-src 'self' https://signalscope-seti.pages.dev https://*.pages.dev https://*.berkeley.edu https://*.googleapis.com https://storage.googleapis.com; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none';"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <link rel="preconnect" href="https://rsms.me/" />
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
     <title>SignalScope SETI</title>

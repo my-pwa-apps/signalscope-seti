@@ -1,7 +1,8 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Stars, Html } from '@react-three/drei';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AdditiveBlending,
+  BufferAttribute,
   BufferGeometry,
   DoubleSide,
   Group,
@@ -9,6 +10,8 @@ import {
   LineBasicMaterial,
   MathUtils,
   Mesh,
+  PointsMaterial,
+  Points as ThreePoints,
   Vector3
 } from 'three';
 import { BRIGHT_STARS } from '../../data/stars';
@@ -26,6 +29,9 @@ interface Props {
 const SCENE_RADIUS = 80;
 
 export function SpaceMap({ target, telescope, className, hud = true }: Props) {
+  const [labelPos, setLabelPos] = useState<{ x: number; y: number; visible: boolean }>(
+    { x: 0, y: 0, visible: false }
+  );
   return (
     <div className={`relative h-full w-full overflow-hidden rounded-xl ${className ?? ''}`}>
       <Canvas
@@ -35,21 +41,34 @@ export function SpaceMap({ target, telescope, className, hud = true }: Props) {
       >
         <color attach="background" args={['#03050d']} />
         <ambientLight intensity={0.45} />
-        <Stars
-          radius={SCENE_RADIUS * 1.4}
-          depth={40}
-          count={3500}
-          factor={2.4}
-          saturation={0}
-          fade
-          speed={0.4}
-        />
+        <StarField count={3500} />
         <CelestialGrid />
         <GalacticPlane />
         <BrightStarSprites />
-        {target && <TargetMarker target={target} />}
+        {target && (
+          <TargetMarker
+            target={target}
+            onProject={(x, y, visible) => setLabelPos({ x, y, visible })}
+          />
+        )}
         <CameraFlight target={target} />
       </Canvas>
+
+      {target && labelPos.visible && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2"
+          style={{ left: `${labelPos.x}px`, top: `${labelPos.y}px` }}
+        >
+          <div className="rounded-md border border-signal-cyan/30 bg-space-950/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-signal-cyan backdrop-blur-md">
+            {target.name}
+            {target.distanceLy ? (
+              <div className="text-[9px] text-slate-400 normal-case tracking-normal">
+                {target.distanceLy.toLocaleString()} ly
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       {hud && (
         <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4 text-xs text-slate-400">
@@ -71,6 +90,58 @@ export function SpaceMap({ target, telescope, className, hud = true }: Props) {
       )}
     </div>
   );
+}
+
+/**
+ * Random twinkling-star backdrop. Replaces drei's `Stars` component with a
+ * tiny custom Points cloud so we don't pay drei's cumulative bundle cost
+ * (~250 KB raw) for a single feature on a single lazy route.
+ */
+function StarField({ count }: { count: number }) {
+  const ref = useRef<ThreePoints>(null!);
+  const geometry = useMemo(() => {
+    // Distribute points uniformly on a sphere shell using the unit-cube
+    // rejection method so the result looks natural (no equatorial bias).
+    const positions = new Float32Array(count * 3);
+    const radius = SCENE_RADIUS * 1.4;
+    let written = 0;
+    while (written < count) {
+      const x = Math.random() * 2 - 1;
+      const y = Math.random() * 2 - 1;
+      const z = Math.random() * 2 - 1;
+      const r2 = x * x + y * y + z * z;
+      if (r2 < 0.01 || r2 > 1) continue;
+      const norm = radius / Math.sqrt(r2);
+      positions[written * 3] = x * norm;
+      positions[written * 3 + 1] = y * norm;
+      positions[written * 3 + 2] = z * norm;
+      written += 1;
+    }
+    const geom = new BufferGeometry();
+    geom.setAttribute('position', new BufferAttribute(positions, 3));
+    return geom;
+  }, [count]);
+  const material = useMemo(() => {
+    return new PointsMaterial({
+      color: 0xc9d6ff,
+      size: 0.45,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: AdditiveBlending
+    });
+  }, []);
+  useFrame((_, delta) => {
+    if (ref.current) ref.current.rotation.y += delta * 0.012;
+  });
+  useEffect(() => {
+    return () => {
+      geometry.dispose();
+      material.dispose();
+    };
+  }, [geometry, material]);
+  return <points ref={ref} geometry={geometry} material={material} />;
 }
 
 function CelestialGrid() {
@@ -158,11 +229,25 @@ function BrightStarSprites() {
   );
 }
 
-function TargetMarker({ target }: { target: SkyTarget }) {
+function TargetMarker({
+  target,
+  onProject
+}: {
+  target: SkyTarget;
+  onProject: (x: number, y: number, visible: boolean) => void;
+}) {
   const pos = useMemo(() => raDecToVec3(target.raHours, target.decDeg, SCENE_RADIUS * 0.96), [target]);
+  const labelOffset = useMemo(() => pos.clone().multiplyScalar(0.99), [pos]);
   const ringRef = useRef<Mesh>(null!);
+  const { camera, size } = useThree();
+  const projection = useRef(new Vector3());
   useFrame((_, delta) => {
     if (ringRef.current) ringRef.current.rotation.z += delta * 0.4;
+    projection.current.copy(labelOffset).project(camera);
+    const x = (projection.current.x * 0.5 + 0.5) * size.width;
+    const y = (-projection.current.y * 0.5 + 0.5) * size.height;
+    const visible = projection.current.z >= -1 && projection.current.z <= 1;
+    onProject(x, y - 28, visible);
   });
   return (
     <group position={pos}>
@@ -178,21 +263,6 @@ function TargetMarker({ target }: { target: SkyTarget }) {
         <ringGeometry args={[1.4, 1.55, 64]} />
         <meshBasicMaterial color="#5ee0ff" transparent opacity={0.55} side={DoubleSide} />
       </mesh>
-      <Html
-        position={[1.6, 0.6, 0]}
-        center={false}
-        wrapperClass="pointer-events-none"
-        style={{ pointerEvents: 'none' }}
-      >
-        <div className="rounded-md border border-signal-cyan/30 bg-space-950/70 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-signal-cyan backdrop-blur-md">
-          {target.name}
-          {target.distanceLy ? (
-            <div className="text-[9px] text-slate-400 normal-case tracking-normal">
-              {target.distanceLy.toLocaleString()} ly
-            </div>
-          ) : null}
-        </div>
-      </Html>
     </group>
   );
 }

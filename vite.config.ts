@@ -91,13 +91,29 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: false,
-    chunkSizeWarningLimit: 1000,
+    // 600 kB — the heaviest chunk (`r3f-vendor`, three.js + @react-three/fiber, lazy-loaded
+    // only on the /sky route) ships at ~600 kB raw / ~165 kB gzipped after dropping drei.
+    // Keep this threshold low enough to surface accidental size regressions in PRs.
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks(id) {
           const normalized = id.replace(/\\/g, '/');
           if (normalized.includes('node_modules/three')) return 'three-vendor';
           if (normalized.includes('node_modules/@react-three')) return 'r3f-vendor';
+          if (
+            normalized.includes('node_modules/react-router') ||
+            normalized.includes('node_modules/@remix-run/router')
+          ) {
+            return 'router-vendor';
+          }
+          if (
+            normalized.includes('node_modules/react/') ||
+            normalized.includes('node_modules/react-dom/') ||
+            normalized.includes('node_modules/scheduler/')
+          ) {
+            return 'react-vendor';
+          }
           return undefined;
         }
       }

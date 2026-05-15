@@ -34,6 +34,21 @@ export function Findings() {
   const triageWithAi = useEngine((s) => s.triageLastResultWithAi);
   const [filter, setFilter] = useState<'all' | CandidateLabel>('all');
   const [active, setActive] = useState<CandidateSignal | null>(null);
+  const [aiSuccess, setAiSuccess] = useState<string | null>(null);
+
+  // Surface a short-lived success confirmation whenever the AI triage status
+  // flips to 'done' — the per-candidate pills are correct but easy to miss.
+  useEffect(() => {
+    if (aiTriageStatus !== 'done') return;
+    const triagedCount =
+      lastResult?.candidates.filter((c) => c.aiAssessment).length ?? 0;
+    if (triagedCount === 0) return;
+    setAiSuccess(
+      `AI triage applied to ${triagedCount} candidate${triagedCount === 1 ? '' : 's'}.`
+    );
+    const handle = window.setTimeout(() => setAiSuccess(null), 5000);
+    return () => window.clearTimeout(handle);
+  }, [aiTriageStatus, lastResult]);
 
   const filtered = useMemo(
     () => (filter === 'all' ? all : all.filter((c) => c.label === filter)),
@@ -135,6 +150,15 @@ export function Findings() {
             and spectrogram tensors are not sent.
             {aiTriageError && (
               <div className="mt-2 text-[11px] text-signal-rose">{aiTriageError}</div>
+            )}
+            {aiSuccess && (
+              <div
+                className="mt-2 text-[11px] text-signal-mint"
+                role="status"
+                aria-live="polite"
+              >
+                {aiSuccess}
+              </div>
             )}
           </div>
           <Button size="sm" variant="ghost" onClick={handleAiTriage} disabled={!canTriageWithAi}>
