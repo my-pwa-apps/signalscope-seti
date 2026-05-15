@@ -348,14 +348,28 @@ async function fetchAndDecodeFilterbank(
           try {
             resp = await fetch(url, { signal: controller.signal });
           } catch (err) {
-            if ((err as Error)?.name === 'AbortError') {
+            const name = (err as Error)?.name;
+            if (name === 'AbortError') {
               throw new Error(
                 `Remote fetch timed out after ${Math.round(timeoutMs / 1000)}s ` +
-                  `(${length} bytes @ ${offset}). The /api/datafile proxy may be ` +
+                  `(${length} bytes @ ${offset}). The ${proxy} proxy may be ` +
                   `unreachable on this host (e.g. GitHub Pages has no Pages Functions).`
               );
             }
-            throw err;
+            // Most fetch failures here surface as a bare `TypeError: Failed
+            // to fetch` from the browser, which tells the user nothing.
+            // Common causes: the proxy endpoint doesn't exist on this host
+            // (static-site mirror), a content blocker rejected the request
+            // because the query string contains an external URL, or DNS /
+            // network is down. Re-throw with the actionable context.
+            const detail = err instanceof Error ? err.message : String(err);
+            throw new Error(
+              `Remote fetch failed at network layer (${detail}). The ` +
+                `${proxy} proxy may not exist on this host \u2014 if you are ` +
+                `on a static mirror (GitHub Pages) switch to the canonical ` +
+                `Cloudflare deployment, otherwise check that no browser ` +
+                `extension is blocking the request.`
+            );
           } finally {
             clearTimeout(timer);
           }

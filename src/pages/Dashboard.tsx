@@ -74,6 +74,8 @@ export function Dashboard() {
   }, [refreshCachedCount]);
 
   const isRunning = status === 'analyzing' || status === 'fetching';
+  const lastError = useEngine((s) => s.lastError);
+  const clearError = useEngine((s) => s.clearError);
 
   return (
     <div className="space-y-5">
@@ -85,6 +87,17 @@ export function Dashboard() {
         currentTarget={currentUnit?.target.name}
       />
 
+      {lastError && (
+        <div className="flex items-start gap-3 rounded-lg border border-signal-rose/30 bg-signal-rose/[0.08] p-3 text-xs leading-relaxed text-signal-rose">
+          <div className="flex-1">
+            <div className="mb-1 font-semibold text-signal-rose">Engine paused after a fetch error</div>
+            <div className="text-signal-rose/80">{lastError}</div>
+          </div>
+          <Button size="sm" variant="ghost" onClick={clearError}>
+            Dismiss
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-4">
         <Card>
           <Stat
