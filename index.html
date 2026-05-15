@@ -15,12 +15,16 @@
       on hosts that do NOT serve the matching HTTP headers from public/_headers
       (e.g. the GitHub Pages mirror at https://my-pwa-apps.github.io/signalscope-seti/).
       On Cloudflare Pages the real HTTP headers from public/_headers take precedence.
-      Note: X-Frame-Options and Permissions-Policy cannot be set via <meta> per spec —
-      CSP `frame-ancestors 'none'` covers the clickjacking case here.
+      Notes per the CSP and Fetch specs, several directives are ignored when delivered via <meta>
+      and must be set as response headers instead:
+        - frame-ancestors (clickjacking) — handled by `X-Frame-Options: DENY` in public/_headers
+          on Cloudflare. The GitHub Pages mirror does not currently enforce it.
+        - Permissions-Policy — handled in public/_headers on Cloudflare; no meta equivalent.
+        - X-Content-Type-Options — handled in public/_headers on Cloudflare; no meta equivalent.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me data:; img-src 'self' data: blob:; connect-src 'self' https://signalscope-seti.pages.dev https://*.pages.dev https://*.berkeley.edu https://*.googleapis.com https://storage.googleapis.com; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none';"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://rsms.me; font-src 'self' https://rsms.me data:; img-src 'self' data: blob:; connect-src 'self' https://signalscope-seti.pages.dev https://*.pages.dev https://*.berkeley.edu https://*.googleapis.com https://storage.googleapis.com; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none';"
     />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <link rel="preconnect" href="https://rsms.me/" />
