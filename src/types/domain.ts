@@ -192,7 +192,7 @@ export type CandidateLabel =
   | 'needs-followup';
 
 export interface AiAssessment {
-  provider: 'cloudflare-workers-ai';
+  provider: 'cloudflare-workers-ai' | 'signalscope-rule-fallback';
   model: string;
   promptVersion: string;
   label: 'likely_rfi' | 'likely_noise' | 'interesting' | 'needs_follow_up';

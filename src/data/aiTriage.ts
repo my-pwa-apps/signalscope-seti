@@ -37,7 +37,7 @@ export async function requestAiTriage(
         binsProcessed: result.binsProcessed,
         summary: result.summary ?? null
       },
-      candidates: candidates.slice(0, 25).map(summarizeCandidate)
+      candidates: candidates.slice(0, 10).map(summarizeCandidate)
     })
   });
 
@@ -51,7 +51,7 @@ export async function requestAiTriage(
   for (const item of payload.assessments ?? []) {
     if (!item.candidateId || !isAiLabel(item.label)) continue;
     assessments.set(item.candidateId, {
-      provider: 'cloudflare-workers-ai',
+      provider: isAiProvider(payload.provider) ? payload.provider : 'cloudflare-workers-ai',
       model: payload.model || 'unknown',
       promptVersion: payload.promptVersion || AI_TRIAGE_PROMPT_VERSION,
       label: item.label,
@@ -114,6 +114,10 @@ function isAiLabel(value: unknown): value is AiAssessment['label'] {
   );
 }
 
+function isAiProvider(value: unknown): value is AiAssessment['provider'] {
+  return value === 'cloudflare-workers-ai' || value === 'signalscope-rule-fallback';
+}
+
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, value));
@@ -142,5 +146,8 @@ async function aiTriageErrorMessage(response: Response): Promise<string> {
   }
   if (response.status === 429) return 'AI triage is busy. Please wait a minute and try again.';
   if (response.status === 413) return 'AI triage request is too large for this deployment.';
+  if (response.status === 502) {
+    return 'AI triage could not produce a clean response. Please try again; the detector results are still saved.';
+  }
   return payload?.error || fallback;
 }

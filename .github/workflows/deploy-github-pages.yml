@@ -34,6 +34,9 @@ jobs:
         run: npm test
 
       - name: Build
+        env:
+          VITE_DATAFILE_PROXY_PATH: https://signalscope-seti.pages.dev/api/datafile
+          VITE_AI_TRIAGE_PATH: https://signalscope-seti.pages.dev/api/triage
         run: npm run build
 
       - name: Configure Pages

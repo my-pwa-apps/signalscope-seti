@@ -34,7 +34,7 @@ interface TriageAssessment {
 }
 
 const DEFAULT_MODEL = '@cf/meta/llama-3.1-8b-instruct';
-const MAX_CANDIDATES = 25;
+const MAX_CANDIDATES = 10;
 const MAX_BODY_BYTES = 32 * 1024;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
@@ -87,7 +87,8 @@ export const onRequestPost: PagesFunction<AiEnv> = async ({ request, env }) => {
         content:
           'You are assisting with educational SETI candidate triage. Be conservative. ' +
           'Never claim evidence of extraterrestrial intelligence. Classify likely mundane causes first. ' +
-          'Return only strict JSON with an "assessments" array. Labels must be one of: ' +
+          'Return only strict compact JSON with an "assessments" array. Do not use markdown. ' +
+          'Keep rationale and recommendedAction under 140 characters each. Labels must be one of: ' +
           'likely_rfi, likely_noise, interesting, needs_follow_up.'
       },
       {
@@ -103,7 +104,9 @@ export const onRequestPost: PagesFunction<AiEnv> = async ({ request, env }) => {
             candidates
           })
       }
-    ]
+    ],
+    temperature: 0.1,
+    max_tokens: 1800
   };
 
   let raw: unknown;
@@ -119,7 +122,14 @@ export const onRequestPost: PagesFunction<AiEnv> = async ({ request, env }) => {
   const text = extractText(raw);
   const parsed = parseAiJson(text);
   if (!parsed || !Array.isArray(parsed.assessments)) {
-    return json({ error: 'Workers AI returned an unparseable triage response.', raw: text }, 502);
+    const now = new Date().toISOString();
+    return json({
+      provider: 'signalscope-rule-fallback',
+      model,
+      promptVersion,
+      warning: 'Workers AI returned an unparseable response; conservative rule labels were applied.',
+      assessments: candidates.map((candidate) => fallbackAssessment(candidate, now))
+    });
   }
 
   const now = new Date().toISOString();
@@ -141,6 +151,35 @@ export const onRequestPost: PagesFunction<AiEnv> = async ({ request, env }) => {
 
   return json({ provider: 'cloudflare-workers-ai', model, promptVersion, assessments });
 };
+
+function fallbackAssessment(candidate: TriageCandidateInput, createdAt: string): TriageAssessment {
+  const label = fallbackLabel(candidate.label);
+  const snr = typeof candidate.snr === 'number' ? candidate.snr : 0;
+  const drift = typeof candidate.driftHzPerSec === 'number' ? Math.abs(candidate.driftHzPerSec) : 0;
+  const recurrence = typeof candidate.recurrenceCount === 'number' ? candidate.recurrenceCount : 0;
+  return {
+    candidateId: String(candidate.id ?? ''),
+    label,
+    confidence: clamp01(label === 'likely_rfi' ? 0.8 : Math.min(0.75, 0.35 + snr / 40)),
+    rationale:
+      label === 'likely_rfi'
+        ? 'Conservative fallback: stationary or repeated narrowband behavior is treated as likely RFI.'
+        : `Conservative fallback: SNR ${snr.toFixed(1)}, drift ${drift.toFixed(2)} Hz/s, recurrence ${recurrence}.`,
+    recommendedAction:
+      label === 'likely_rfi'
+        ? 'Mark as RFI unless independent follow-up contradicts it.'
+        : 'Keep for review, but require independent follow-up before any claim.',
+    createdAt
+  };
+}
+
+function fallbackLabel(label: unknown): TriageAssessment['label'] {
+  if (label === 'likely-rfi') return 'likely_rfi';
+  if (label === 'noise') return 'likely_noise';
+  if (label === 'needs-followup') return 'needs_follow_up';
+  if (label === 'interesting') return 'interesting';
+  return 'likely_rfi';
+}
 
 export const onRequestOptions: PagesFunction<AiEnv> = async () => {
   return new Response(null, {
