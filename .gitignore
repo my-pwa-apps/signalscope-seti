@@ -1,0 +1,26 @@
+node_modules
+dist
+dist-ssr
+*.tsbuildinfo
+*.local
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Cloudflare
+.wrangler
+.dev.vars
+
+# OS
+.DS_Store
+Thumbs.db

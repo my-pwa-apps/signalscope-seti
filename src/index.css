@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(58, 71, 145, 0.25), transparent 60%),
+    radial-gradient(900px 500px at -10% 20%, rgba(139, 92, 246, 0.18), transparent 60%),
+    #05070f;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+/* Subtle scrollbar so dark theme looks intentional */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.18);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.32);
+}
+
+/* Selection */
+::selection {
+  background: rgba(94, 224, 255, 0.35);
+  color: #fff;
+}
+
+/* Inter variable font fallback if remote fails */
+@supports (font-variation-settings: normal) {
+  body {
+    font-family: 'InterVariable', 'Inter', system-ui, sans-serif;
+  }
+}
+
+.pixelated-canvas {
+  image-rendering: pixelated;
+}
+
+.pwa-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 80;
+  display: flex;
+  max-width: min(24rem, calc(100vw - 2rem));
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid rgba(94, 224, 255, 0.28);
+  border-radius: 0.75rem;
+  background: rgba(5, 7, 15, 0.94);
+  padding: 0.75rem 0.9rem;
+  color: rgb(226, 232, 240);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.38);
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.pwa-toast button {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgb(94, 224, 255);
+  padding: 0.4rem 0.7rem;
+  color: rgb(5, 7, 15);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pwa-toast-subtle {
+  border-color: rgba(45, 212, 191, 0.28);
+  color: rgb(204, 251, 241);
+}
