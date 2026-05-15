@@ -432,10 +432,10 @@ function LiveArchiveCard({ isOnline }: { isOnline: boolean }) {
       </div>
       <p className="text-[11px] leading-relaxed text-slate-400">
         Streams real <code className="rounded bg-black/30 px-1 py-0.5 font-mono text-[10px]">.fil</code>{' '}
-        filterbank captures from Berkeley SETI&rsquo;s public archive &mdash; Voyager 1,
-        Oumuamua, TRAPPIST-1, FRB 121102, and more &mdash; through our Cloudflare
-        range-proxy. Very large files (tens of GB) are sampled in multiple
-        non-contiguous time windows.
+        filterbank captures from Berkeley SETI&rsquo;s public archive &mdash; Voyager 1
+        (positive-control calibration, not an ET candidate), Oumuamua, TRAPPIST-1,
+        FRB 121102, and more &mdash; through our Cloudflare range-proxy. Very large
+        files (tens of GB) are sampled in multiple non-contiguous time windows.
       </p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         <Pill tone="cyan">Breakthrough Listen</Pill>

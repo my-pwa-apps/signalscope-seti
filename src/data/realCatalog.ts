@@ -12,7 +12,9 @@ const DATAFILE_PROXY_PATH = import.meta.env.VITE_DATAFILE_PROXY_PATH ?? '/api/da
  * diversity:
  *
  *  - Voyager 1                  — the canonical artificial Doppler-drift
- *                                 narrowband detection ("we know this works")
+ *                                 narrowband detection. Used as a positive
+ *                                 control / calibration target: detections
+ *                                 here are human technology, NOT ET.
  *  - 'Oumuamua / 'Oumuamua_OFF — the interstellar visitor + an off-source
  *                                 baseline for textbook RFI rejection
  *  - TRAPPIST-1                 — 7-planet exoplanet system
@@ -65,11 +67,11 @@ export const REAL_CATALOG: RealCatalogEntry[] = [
   {
     id: 'voyager1-2020',
     target: {
-      name: 'Voyager 1',
+      name: 'Voyager 1 (calibration)',
       raHours: 17.165,
       decDeg: 12.106,
       distanceLy: 0.00248,
-      note: 'Interstellar probe — X-band carrier near 8420 MHz'
+      note: 'Human-made probe transmitting from interstellar space — used as a positive-control target, NOT an ET candidate'
     },
     telescope: 'Green Bank Telescope',
     observedAt: '2020-04-09T00:00:00Z',
@@ -82,7 +84,7 @@ export const REAL_CATALOG: RealCatalogEntry[] = [
     maxBytes: 64 * 1024 * 1024,
     upstreamUrl:
       'http://blpd0.ssl.berkeley.edu/Voyager_data/Voyager1.single_coarse.fine_res.fil',
-    note: 'Real narrowband detection — the textbook Doppler-drifting carrier from a man-made transmitter 24 billion km away.',
+    note: 'Calibration target. Voyager 1 transmits its X-band downlink carrier from ~24 billion km away; detecting it proves the pipeline works. Any signal we find here is human technology, not extraterrestrial.',
     attribution: ATTRIBUTION_BL
   },
   {

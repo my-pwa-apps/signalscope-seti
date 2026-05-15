@@ -156,7 +156,7 @@ real-data inputs:
 
 | Mode | Source | Use case |
 | --- | --- | --- |
-| **Live archive feed** | Streams `.fil` filterbank files from Berkeley's public archive | Genuine science — Voyager 1, Oumuamua, TRAPPIST-1, FRB 121102, pulsars |
+| **Live archive feed** | Streams `.fil` filterbank files from Berkeley's public archive | Genuine science — Voyager 1 (positive-control calibration), Oumuamua, TRAPPIST-1, FRB 121102, pulsars |
 | **Upload your own .fil** | A SIGPROC filterbank you already have on disk | Amateur radio-astronomy second-opinion runs, archive re-analysis |
 
 There is **no demo / synthetic mode** — every analysis is on real bytes. If
@@ -176,7 +176,7 @@ a textbook pulsar (PSR J0332+5434), and a tiny test file.
 
 | Entry | Telescope | Band | Size | Why it's interesting |
 | --- | --- | --- | --- | --- |
-| `voyager1-2020` | GBT | X-band (~8.4 GHz) | ~65 MB | The canonical *real* narrowband detection — Voyager 1's downlink carrier near 8420 MHz, the textbook artificial Doppler-drift signature. |
+| `voyager1-2020` | GBT | X-band (~8.4 GHz) | ~65 MB | Positive-control calibration target. Voyager 1's downlink carrier near 8420 MHz is the textbook artificial Doppler-drift signature — a known *human* transmitter at interstellar distance. Detecting it proves the pipeline works; it is **not** an ET candidate. |
 | `oumuamua-on` | GBT | S-band (~2.4 GHz) | ~558 MB (range) | 2017 Breakthrough Listen observation of 1I/'Oumuamua, the first known interstellar object. ON-source. |
 | `oumuamua-off` | GBT | S-band (~2.4 GHz) | ~558 MB (range) | Matched OFF-source baseline ~2° away — pair this with `oumuamua-on` to do a real ON/OFF differential. |
 | `trappist1-2017` | GBT | S-band (~2.16 GHz) | ~334 MB | TRAPPIST-1 — the seven Earth-sized planets, three in the habitable zone. A top SETI target. |
