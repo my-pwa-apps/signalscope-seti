@@ -15,25 +15,52 @@ export interface AnalysisRunResult {
   spectrogram: Spectrogram;
 }
 
+/** Module-level singleton: one analysis worker is reused across every unit
+ *  for the lifetime of the page, so we don't repeatedly pay the worker spin-up
+ *  cost or leak orphaned workers holding spectrogram buffers. */
 let worker: Worker | null = null;
+/** Active in-flight handler so we route postMessage events to the right run
+ *  even though the worker is shared. */
+let activeHandler: ((msg: Outgoing) => void) | null = null;
+let activeError: ((message: string) => void) | null = null;
 let cancelInflight: (() => void) | null = null;
 
-function ensureWorker(handle: (msg: Outgoing) => void): Worker {
+function ensureWorker(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL('../workers/analysis.worker.ts', import.meta.url), {
     type: 'module',
     name: 'signalscope-analysis'
   });
-  worker.onmessage = (ev: MessageEvent<Outgoing>) => handle(ev.data);
+  worker.onmessage = (ev: MessageEvent<Outgoing>) => {
+    if (activeHandler) activeHandler(ev.data);
+  };
   worker.onerror = (event) => {
-    console.error('[analysis worker]', event.message);
+    const message = event.message || 'Analysis worker crashed.';
+    console.error('[analysis worker]', message);
+    if (activeError) activeError(message);
   };
   return worker;
 }
 
+/** Send a cancel message to the in-flight analysis (if any) and resolve the
+ *  pending promise with `null`. Safe to call when nothing is running. */
 export function cancelCurrentAnalysis(): void {
   if (worker) worker.postMessage({ type: 'cancel' });
   if (cancelInflight) cancelInflight();
+}
+
+/** Tear the analysis worker down completely. Used by the engine reset path so
+ *  IndexedDB clears + the next analysis start from a known-good state. */
+export function disposeAnalysisWorker(): void {
+  if (cancelInflight) cancelInflight();
+  if (worker) {
+    worker.onmessage = null;
+    worker.onerror = null;
+    worker.terminate();
+    worker = null;
+  }
+  activeHandler = null;
+  activeError = null;
 }
 
 export function analyzeWorkUnit(
@@ -44,12 +71,14 @@ export function analyzeWorkUnit(
   return new Promise((resolve) => {
     let unit = initialUnit;
     let settled = false;
-    const w = ensureWorker(handle);
+    const w = ensureWorker();
 
+    activeHandler = handle;
+    activeError = handleWorkerError;
     cancelInflight = () => {
       if (settled) return;
       settled = true;
-      cleanup();
+      detach();
       resolve(null);
     };
 
@@ -76,19 +105,27 @@ export function analyzeWorkUnit(
         callbacks.onUnitUpdated(unit);
       } else if (msg.type === 'done' && msg.workUnitId === unit.id) {
         settled = true;
-        cleanup();
+        detach();
         resolve({ unit, result: msg.result, spectrogram: msg.spectrogram });
       } else if (msg.type === 'error') {
         callbacks.onError(msg.message);
         settled = true;
-        cleanup();
+        detach();
         resolve(null);
       }
     }
 
-    function cleanup() {
-      if (worker) worker.onmessage = null;
-      worker = null;
+    function handleWorkerError(message: string) {
+      if (settled) return;
+      callbacks.onError(message);
+      settled = true;
+      detach();
+      resolve(null);
+    }
+
+    function detach() {
+      if (activeHandler === handle) activeHandler = null;
+      if (activeError === handleWorkerError) activeError = null;
       cancelInflight = null;
     }
 

@@ -22,7 +22,11 @@ import {
   recordChunkAnalysis
 } from '../data/datasetMemory';
 import { requestAiTriage } from '../data/aiTriage';
-import { analyzeWorkUnit, cancelCurrentAnalysis } from './engineCoordinator';
+import {
+  analyzeWorkUnit,
+  cancelCurrentAnalysis,
+  disposeAnalysisWorker
+} from './engineCoordinator';
 
 const STORAGE_KEY = 'signalscope:contribution-stats:v1';
 const CANDIDATES_KEY = 'signalscope:candidates:v1';
@@ -125,9 +129,12 @@ function loadSettings(): Settings {
   const resourceProfile = isResourceProfile(raw.resourceProfile)
     ? raw.resourceProfile
     : 'balanced';
-  const settings: Settings = { resourceProfile };
-  saveJSON(SETTINGS_KEY, settings);
-  return settings;
+  // Only normalize the persisted blob if the previous value was missing or
+  // invalid; otherwise we'd rewrite localStorage on every page load.
+  if (!isResourceProfile(raw.resourceProfile)) {
+    saveJSON(SETTINGS_KEY, { resourceProfile });
+  }
+  return { resourceProfile };
 }
 
 function isResourceProfile(value: unknown): value is ResourceProfile {
@@ -240,6 +247,10 @@ export const useEngine = create<EngineStore>((set) => ({
       totalComputeMs: 0,
       throughputMbinsPerSec: 0
     };
+    // Tear down the analysis worker so any retained spectrogram buffers from
+    // the previous session are released alongside the IndexedDB clear.
+    running = false;
+    disposeAnalysisWorker();
     saveJSON(STORAGE_KEY, fresh);
     saveJSON(CANDIDATES_KEY, []);
     saveJSON(HISTORY_KEY, []);

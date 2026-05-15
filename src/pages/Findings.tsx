@@ -305,18 +305,24 @@ function AiAssessmentPill({ assessment }: { assessment: AiAssessment }) {
     needs_follow_up: { tone: 'amber', text: 'AI: follow-up' }
   };
   const { tone, text } = map[assessment.label];
+  const isFallback = assessment.provider === 'signalscope-rule-fallback';
+  const display = isFallback ? text.replace('AI:', 'Rule:') : text;
   return (
     <Pill tone={tone} className="text-[10px]">
-      {text} {(assessment.confidence * 100).toFixed(0)}%
+      {display} {(assessment.confidence * 100).toFixed(0)}%
     </Pill>
   );
 }
 
 function AiAssessmentCard({ assessment }: { assessment: AiAssessment }) {
+  const isFallback = assessment.provider === 'signalscope-rule-fallback';
+  const title = isFallback
+    ? 'Conservative rule-based fallback (AI did not return parseable JSON)'
+    : 'Cloudflare AI advisory triage';
   return (
     <div className="rounded-lg border border-signal-violet/25 bg-signal-violet/5 p-3 text-[11px] leading-relaxed text-violet-100/80">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <strong className="font-semibold text-signal-violet">Cloudflare AI advisory triage</strong>
+        <strong className="font-semibold text-signal-violet">{title}</strong>
         <span className="font-mono text-[10px] text-violet-100/60">
           {assessment.model} · {(assessment.confidence * 100).toFixed(0)}%
         </span>

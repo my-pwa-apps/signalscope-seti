@@ -370,6 +370,7 @@ pages_build_output_dir = "dist"
 
 [ai]
 binding = "AI"
+remote = true
 
 [vars]
 CLOUDFLARE_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
@@ -564,9 +565,7 @@ catalog or add new shapes of data:
 ```
 ├── functions/api/        # Cloudflare Pages Functions
 │   ├── datafile.ts       #   range-proxy for Berkeley SETI public archive
-│   ├── workunit.ts       #   stub: hand out a WorkUnit descriptor
-│   ├── result.ts         #   stub: accept analysis results
-│   └── stats.ts          #   stub: aggregated dashboard counters
+│   └── triage.ts         #   optional Cloudflare Workers AI advisory triage
 ├── public/               # Static assets, PWA icons, favicon
 ├── src/
 │   ├── components/       # UI primitives, layout, visualizations
