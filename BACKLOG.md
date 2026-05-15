@@ -284,3 +284,27 @@ This pass closes every open item from the May 16, 2026 review (4 Medium + 4 Low)
   **Impact:** Bursts from a single IP that hit two colos simultaneously can still exceed `RATE_LIMIT_MAX_REQUESTS`. Acceptable as a soft quota guard; not a hard enforcement.
   **Suggested fix:** Layer a Cloudflare WAF rate-limiting rule on the `/api/triage` route (5 req / 60 s / IP) for hard enforcement, or migrate to a Durable Object counter.
   **Acceptance criteria:** A scripted multi-colo burst from one IP never makes more than `RATE_LIMIT_MAX_REQUESTS` AI calls within `RATE_LIMIT_WINDOW_MS` end-to-end.
+
+## UX Polish - May 17, 2026 (Space Map hyperrealism pass)
+
+User feedback: the Space Map looked too "all-purpose" — every target shared one generic marker model and the same uniform starfield, which did not match the scientific identity of the underlying objects.
+
+### Closed in this pass
+
+- [x] [Priority: Low — UX]
+  **Area:** Visualization
+  **File(s):** src/types/domain.ts, src/data/skyTargets.ts, src/components/space/SpaceMap.tsx
+  **Issue:** Every catalog target rendered as the same orange sphere; the background was a single flat starfield with visible square `Points` quads.
+  **Impact:** The Space Map did not communicate the scientific differences between an M-dwarf system, a Sun-like G-star, and a supermassive black hole.
+  **Acceptance criteria:** Each `kind` in the catalog renders a distinct, scientifically inspired model and the background reads as deep-sky imagery. **FIXED** —
+  - Added `kind` ('m-dwarf' / 'k-star' / 'g-star' / 'smbh') and `planetCount` to `SkyTarget`; tagged all 10 catalog entries.
+  - New per-kind models (all `three` core, no new dependencies):
+    - `MDwarfModel` — small reddish core + faint corona, tightly packed planets in browns/reds.
+    - `KStarModel` — orange core + warmer halo, slower flare modulation.
+    - `GStarModel` — bright Sun-like white-yellow photosphere + larger corona, mixed-color planets on wider orbits.
+    - `BlackHoleModel` — black event horizon, photon ring, four nested accretion disk rings (yellow → orange → red → magenta) with cyan polar jets, evoking the EHT image of Sgr A*.
+    - `PlanetSystem` — orbital `Line`s + revolving planet meshes whose count and palette depend on the parent `kind`.
+    - `SelectionRing` — always renders a cyan ring around the active target.
+  - Replaced the single `Stars` cloud with three spectral `StarFieldLayer`s (M-red dim layer, G/K mid layer, rare O/B + giant bright layer with twinkle), a tilted `MilkyWayBand` of 3500 additive points along the galactic equator, and `ConstellationLines` for five well-known asterisms (Summer Triangle, Winter Triangle, Orion, Crux, Big Dipper handle).
+  - Added `getSoftPointTexture()` — a cached 64×64 radial-gradient `CanvasTexture` shared by every `PointsMaterial` so points render as soft glow disks instead of opaque squares.
+  - Verified visually at `http://127.0.0.1:4181/#/sky` for TRAPPIST-1, Sgr A*, and Tau Ceti — each renders distinctly. Bundle: `SpaceMapPage` 20.35 kB / 6.32 kB gz; `r3f-vendor` unchanged at 811.70 kB / 215.31 kB gz; 0 vulns; 27/27 tests pass.

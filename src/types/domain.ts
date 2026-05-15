@@ -24,6 +24,25 @@ export interface SkyTarget {
   distanceLy?: number;
   /** Optional short description ("nearby M dwarf", "galactic plane sweep"). */
   note?: string;
+  /**
+   * Coarse object class used by the 3D Space Map to pick a scientifically
+   * inspired model (an M-dwarf is rendered as a small reddish star with a
+   * cool corona, Sgr A* as a spinning accretion disk + jets, etc.). Optional
+   * \u2014 targets without a `kind` fall back to the generic glowing marker.
+   *
+   * Stellar classes broadly follow the Morgan\u2013Keenan system:
+   *   - 'm-dwarf' : K7\u2013M9 main sequence (cool reds, often hosting tightly-packed planet systems)
+   *   - 'k-star'  : K0\u2013K6 main sequence (orange, slightly brighter)
+   *   - 'g-star'  : F8\u2013G9 main sequence (Sun-like yellow-white)
+   *   - 'smbh'    : Supermassive black hole + accretion disk
+   */
+  kind?: 'm-dwarf' | 'k-star' | 'g-star' | 'smbh';
+  /**
+   * Number of confirmed or strongly-suspected planets in the system, used by
+   * the 3D Space Map to render orbiting planet markers around the host star.
+   * Visualization only; does not affect analysis.
+   */
+  planetCount?: number;
 }
 
 export interface WorkUnit {
