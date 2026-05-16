@@ -358,17 +358,31 @@ async function fetchAndDecodeFilterbank(
             }
             // Most fetch failures here surface as a bare `TypeError: Failed
             // to fetch` from the browser, which tells the user nothing.
-            // Common causes: the proxy endpoint doesn't exist on this host
-            // (static-site mirror), a content blocker rejected the request
-            // because the query string contains an external URL, or DNS /
-            // network is down. Re-throw with the actionable context.
+            // Likely root causes, in order of frequency we have observed:
+            //   1. TLS handshake failure reaching the proxy host (older
+            //      Windows TLS cipher sets, corporate MITM, expired roots).
+            //      This is the source of every "Failed to fetch" we have
+            //      reproduced against pages.dev so far.
+            //   2. Content blocker rejecting the request because the query
+            //      string embeds an external archive URL.
+            //   3. The proxy endpoint genuinely does not exist on this host
+            //      (a static mirror without Pages Functions). Note this
+            //      usually surfaces as a 4xx Response, not a TypeError.
+            //   4. DNS / network is down.
             const detail = err instanceof Error ? err.message : String(err);
+            const isCrossOrigin = /^https?:\/\//i.test(proxy);
+            const proxyHost = isCrossOrigin
+              ? new URL(proxy).host
+              : 'this origin';
             throw new Error(
-              `Remote fetch failed at network layer (${detail}). The ` +
-                `${proxy} proxy may not exist on this host \u2014 if you are ` +
-                `on a static mirror (GitHub Pages) switch to the canonical ` +
-                `Cloudflare deployment, otherwise check that no browser ` +
-                `extension is blocking the request.`
+              `Remote fetch failed at network layer (${detail}) talking to ` +
+                `${proxyHost}. Most likely a TLS handshake or DNS failure ` +
+                `from this workstation to the proxy host \u2014 try a ` +
+                `different network, update Windows / the browser, or ` +
+                `disable any content blocker. If the proxy itself is the ` +
+                `problem, switch to the canonical Cloudflare deployment ` +
+                `(${proxy}). You can also keep working offline by uploading ` +
+                `a local .fil file or replaying a cached observation.`
             );
           } finally {
             clearTimeout(timer);
