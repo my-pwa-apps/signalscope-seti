@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopBar } from './components/layout/TopBar';
 import { MobileNav } from './components/layout/MobileNav';
+import { IdleScreensaver } from './components/screensaver/IdleScreensaver';
 import { Dashboard } from './pages/Dashboard';
 import { LiveAnalysis } from './pages/LiveAnalysis';
 import { Findings } from './pages/Findings';
@@ -42,6 +43,7 @@ function Shell() {
         <Footer />
         <MobileNav />
       </div>
+      <IdleScreensaver />
     </div>
   );
 }

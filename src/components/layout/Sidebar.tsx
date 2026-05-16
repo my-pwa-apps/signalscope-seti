@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { NavLink } from 'react-router-dom';
 import { useEngine } from '../../engine/store';
+import { ScreensaverToggle } from '../screensaver/IdleScreensaver';
 
 const LINKS = [
   { to: '/', label: 'Dashboard', icon: 'mission' },
@@ -50,6 +51,7 @@ export function Sidebar() {
           </div>
           Analysis runs locally in your browser. Exported findings are downloaded manually.
         </div>
+        <ScreensaverToggle />
         <div className="flex items-center justify-between text-[10px] uppercase tracking-widest text-slate-500">
           <span>Engine</span>
           <StatusPill status={status} />
